@@ -22,7 +22,7 @@ jobs:
     services:
       artemis:
         image: apache/activemq-artemis:latest-alpine
-      mariadb:
+      db:
         image: mariadb
         env:
           MYSQL_USER: drupal
