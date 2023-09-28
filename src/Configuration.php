@@ -34,13 +34,12 @@ final class Configuration {
     public readonly ?string $user = NULL,
     public readonly ?string $pass = NULL,
     public readonly array $heartbeat = [
-      'send' => 500,
-      'readTimeout' => ['microseconds' => 250000],
+      'send' => 3000,
+      'readTimeout' => ['microseconds' => 1500000],
     ],
   ) {
-    if (!str_starts_with($this->destination, '/topic/') && !str_starts_with($this->destination, '/queue/')) {
-      throw new \InvalidArgumentException('The destination must start with /topic or /queue.');
-    }
+    Assert::regex($this->destination, '/^(\/topic\/|\/queue\/)/');
+
     if ($this->heartbeat) {
       Assert::keyExists($this->heartbeat, 'send');
       Assert::keyExists($this->heartbeat, 'readTimeout');

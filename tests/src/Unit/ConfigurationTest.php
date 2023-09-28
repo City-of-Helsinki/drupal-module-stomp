@@ -34,6 +34,7 @@ class ConfigurationTest extends UnitTestCase {
     $this->assertProps(new Configuration(
       'client',
       'tcp://127.0.0.1:1234',
+      '/topic/test',
       user: 'user1',
       pass: 'pass1',
       heartbeat: [],
@@ -41,6 +42,7 @@ class ConfigurationTest extends UnitTestCase {
     $this->assertProps(new Configuration(
       'client',
       'tcp://127.0.0.1:1234',
+      '/queue/test',
       user: 'user1',
       pass: 'pass1',
       heartbeat: ['send' => 1, 'readTimeout' => ['microseconds' => 250]],
@@ -86,7 +88,7 @@ class ConfigurationTest extends UnitTestCase {
    */
   public function testInvalidDestination() : void {
     $this->expectException(\InvalidArgumentException::class);
-    $this->expectExceptionMessageMatches('/The destination must start with/');
+    $this->expectExceptionMessageMatches('/does not match the expected pattern./');
     new Configuration('client', 'tcp://127.0.0.1', destination: 'invalidType');
   }
 

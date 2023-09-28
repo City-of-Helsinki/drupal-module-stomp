@@ -6,17 +6,26 @@ on:
 name: CI
 env:
   SYMFONY_DEPRECATIONS_HELPER: disabled
-  BROWSERTEST_OUTPUT_DIRECTORY: 'public/sites/simpletest'
+  BROWSERTEST_OUTPUT_DIRECTORY: 'sites/simpletest'
+  SIMPLETEST_DB: "mysql://drupal:drupal@mariadb:3306/drupal"
+  SIMPLETEST_BASE_URL: "http://127.0.0.1:8080"
+  COMPOSER_MIRROR_PATH_REPOS: 1
 jobs:
   tests:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        php-versions: ['8.1', '8.2']
+        php-version: ['8.2']
+        core: ['10.1.x']
+        include:
+          - core: 9.5.x
+            php-version: '8.1'
     container:
       image: ghcr.io/city-of-helsinki/drupal-php-docker:${{ matrix.php-versions }}-alpine
 
     services:
+      artemis:
+        image: apache/activemq-artemis:latest-alpine
       db:
         image: mariadb
         env:
@@ -39,23 +48,33 @@ jobs:
         run: echo "DRUPAL_ROOT=$HOME/drupal" >> $GITHUB_ENV
 
       - name: Set module folder
-        run: echo "MODULE_FOLDER=$DRUPAL_ROOT/public/modules/contrib/$MODULE_NAME" >> $GITHUB_ENV
+        run: echo "MODULE_FOLDER=$DRUPAL_ROOT/modules/contrib/$MODULE_NAME" >> $GITHUB_ENV
 
-      - name: Clone platform
+      - name: Clone drupal
         run: |
-          git clone --depth=1 https://github.com/City-of-Helsinki/drupal-helfi-platform.git $DRUPAL_ROOT
-          rm -rf $DRUPAL_ROOT/.git
+          git clone --depth 1 --branch "${{ matrix.core }}" \
+            https://git.drupal.org/project/drupal.git/ $DRUPAL_ROOT
 
-      - name: Install required composer dependencies
+      - name: Setup composer and dependencies
         working-directory: ${{ env.DRUPAL_ROOT }}
         run: |
+          composer config platform.php ${{ matrix.php-version }}
+          composer run-script drupal-phpunit-upgrade
           composer config repositories.5 path $GITHUB_WORKSPACE
           composer require drupal/$MODULE_NAME -W
+          composer require "drush/drush ^11.0"
+          composer config --no-plugins allow-plugins.dealerdirect/phpcodesniffer-composer-installer true
+          composer require --dev "drupal/coder"
           # We use COMPOSER_MIRROR_PATH_REPOS=1 to mirror local repository
           # instead of symlinking it to prevent code coverage issues with
           # phpunit. Copy .git folder manually so codecov can generate line by
           # line coverage.
           cp -r $GITHUB_WORKSPACE/.git $MODULE_FOLDER/
+
+      - name: Run PHPCS
+        working-directory: ${{ env.DRUPAL_ROOT }}
+        run: |
+          vendor/bin/phpcs $MODULE_FOLDER --standard=Drupal --extensions=php,module,inc,install,test,info
 
       - name: Install Drupal
         working-directory: ${{ env.DRUPAL_ROOT }}
@@ -63,22 +82,23 @@ jobs:
           php -d sendmail_path=$(which true); vendor/bin/drush --yes -v site-install minimal --db-url="$SIMPLETEST_DB"
           vendor/bin/drush en $MODULE_NAME -y
 
-      - name: Run PHPCS
-        working-directory: ${{ env.DRUPAL_ROOT }}
-        run: |
-          vendor/bin/phpcs $MODULE_FOLDER --standard=Drupal --extensions=php,module,inc,install,test,info
-
       - name: Start services
         working-directory: ${{ env.DRUPAL_ROOT }}
         run: |
-          vendor/bin/drush runserver $SIMPLETEST_BASE_URL > /dev/null 2>&1 &
           chromedriver --port=4444 > /dev/null 2>&1 &
+          # Wait for Drush server to start.
+          for i in {1..5}; do
+            RESPONSE_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$SIMPLETEST_BASE_URL" || true);
+            if [ "$RESPONSE_CODE" -gt "301" ] || [ "$RESPONSE_CODE" -lt "200" ]; then
+              sleep 2;
+            fi
+          done
 
       - name: Run PHPUnit tests
         working-directory: ${{ env.DRUPAL_ROOT }}
         run: |
           vendor/bin/phpunit \
-            --bootstrap $DRUPAL_ROOT/public/core/tests/bootstrap.php \
+            --bootstrap $DRUPAL_ROOT/core/tests/bootstrap.php \
             -c $MODULE_FOLDER/phpunit.xml \
             --coverage-clover=$MODULE_FOLDER/coverage.xml \
             $MODULE_FOLDER

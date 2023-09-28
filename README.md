@@ -32,8 +32,8 @@ $settings['queue_default'] = 'queue.stomp.default';
 Alternatively, you can also set for each queue to use STOMP using one of these formats:
 
 ```php
-$settings['queue_service_{queue_name}'] = 'queue.rabbitmq.default';
-$settings['queue_reliable_service_{queue_name}'] = 'queue.rabbitmq.default';
+$settings['queue_service_{queue_name}'] = 'queue.stomp.default';
+$settings['queue_reliable_service_{queue_name}'] = 'queue.stomp.default';
 ```
 
 ## Customization
@@ -56,12 +56,12 @@ To modify heartbeat timeouts:
 ```php
 $settings['stomp']['default']['heartbeat'] = [
   // Signals the server that we're going to send
-  // alive signals within an interval of 500ms.
-  'send' => 500,
+  // alive signals within an interval of 3000ms.
+  'send' => 3000,
   // We must assure that we'll send data within less
   // than 500ms so our read timeout must be lower
-  // as well (250000  = 250ms).
-  'readTimeout' => ['microseconds' => 250000],
+  // as well (1500000  = 1500ms).
+  'readTimeout' => ['microseconds' => 1500000],
 ];
 ```
 
