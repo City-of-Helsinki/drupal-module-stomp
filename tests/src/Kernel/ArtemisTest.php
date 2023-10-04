@@ -74,9 +74,9 @@ class ArtemisTest extends QueueTestBase {
     $this->assertEquals(0, $sut->numberOfItems());
 
     $message = $sut->claimItem();
-    $headers = $message->data->getHeaders();
+    $headers = $message->message->getHeaders();
     $this->assertEquals('false', $headers['redelivered']);
-    $this->assertEquals($data, $message->data->getBody());
+    $this->assertEquals($data, $message->message->getBody());
     $this->assertTrue($sut->releaseItem($message));
   }
 
@@ -88,12 +88,12 @@ class ArtemisTest extends QueueTestBase {
   public function testQueueAck(string $expectedQueue, string $queueName) : void {
     $sut = $this->getSut($queueName);
     $message = $sut->claimItem();
-    $headers = $message->data->getHeaders();
+    $headers = $message->message->getHeaders();
 
     $this->assertEquals('true', $headers['redelivered']);
     $this->assertEquals($expectedQueue, $headers['destination']);
     $this->assertEquals($expectedQueue, $headers['subscription']);
-    $this->assertEquals('test ' . $queueName, $message->data->getBody());
+    $this->assertEquals('test ' . $queueName, $message->message->getBody());
     $sut->deleteItem($message);
   }
 

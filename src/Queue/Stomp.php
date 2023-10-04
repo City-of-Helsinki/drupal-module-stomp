@@ -11,6 +11,8 @@ use Stomp\Broker\ActiveMq\Mode\DurableSubscription;
 use Stomp\Client;
 use Stomp\Exception\StompException;
 use Stomp\Transport\Frame;
+use Stomp\Transport\Map;
+use Stomp\Transport\Message;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 
 /**
@@ -56,6 +58,8 @@ final class Stomp implements ReliableQueueInterface {
    *
    * @return \Stomp\Broker\ActiveMq\Mode\DurableSubscription
    *   The Durable subscription.
+   *
+   * @throws \Stomp\Exception\StompException
    */
   private function connect() : DurableSubscription {
     $this->durableSubscription->activate();
@@ -87,14 +91,19 @@ final class Stomp implements ReliableQueueInterface {
    */
   public function claimItem($lease_time = 3600) : object|false {
     try {
-      $message = $this->connect()->read();
+      while (TRUE) {
+        if (!$message = $this->connect()->read()) {
+          continue;
+        }
+        // The 'drush queue:run' command expects an object with
+        // item_id and data.
+        return (object) [
+          'item_id' => $message->getMessageId(),
+          'message' => $message,
+          'data' => $this->decodeMessage($message),
+        ];
+      }
 
-      // The 'drush queue:run' command expects an object with
-      // item_id and data.
-      return (object) [
-        'item_id' => $message ? $message->getMessageId() : NULL,
-        'data' => $message,
-      ];
     }
     catch (StompException $e) {
       $this->logger->error('Failed to read item from %queue: @message', [
@@ -106,13 +115,37 @@ final class Stomp implements ReliableQueueInterface {
   }
 
   /**
+   * Decodes the given message object.
+   *
+   * @param mixed $message
+   *   The message to decode.
+   *
+   * @return mixed
+   *   The decoded message.
+   */
+  private function decodeMessage(mixed $message) : mixed {
+    if ($message instanceof Map) {
+      return $message->getMap();
+    }
+
+    if ($message instanceof Message) {
+      return $message->getBody();
+    }
+    return $message;
+  }
+
+  /**
    * {@inheritdoc}
    */
   public function deleteItem($item) : void {
-    if (!$item->data instanceof Frame) {
+    if (!$item->message instanceof Frame) {
       return;
     }
-    $this->connect()->ack($item->data);
+    try {
+      $this->connect()->ack($item->message);
+    }
+    catch (StompException) {
+    }
   }
 
   /**
