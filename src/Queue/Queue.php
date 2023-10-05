@@ -130,6 +130,7 @@ final class Queue implements ReliableQueueInterface {
         ]);
       }
     }
+    return FALSE;
   }
 
   /**
