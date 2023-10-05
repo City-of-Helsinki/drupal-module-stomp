@@ -5,7 +5,7 @@ declare(strict_types = 1);
 namespace Drupal\Tests\stomp\Kernel;
 
 use Drupal\KernelTests\KernelTestBase;
-use Drupal\stomp\Queue\Stomp;
+use Drupal\stomp\Queue\Queue;
 
 /**
  * A base class for queue tests.
@@ -79,10 +79,10 @@ abstract class QueueTestBase extends KernelTestBase {
    * @param string $queue
    *   The queue.
    *
-   * @return \Drupal\stomp\Queue\Stomp
+   * @return \Drupal\stomp\Queue\Queue
    *   The stomp service.
    */
-  protected function getSut(string $queue) : Stomp {
+  protected function getSut(string $queue) : Queue {
     return $this->container->get('queue')->get($queue);
   }
 

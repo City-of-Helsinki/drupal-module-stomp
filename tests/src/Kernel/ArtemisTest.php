@@ -4,8 +4,6 @@ declare(strict_types = 1);
 
 namespace Drupal\Tests\stomp\Kernel;
 
-use Stomp\Transport\Message;
-
 /**
  * Tests queue with artemis.
  *
@@ -68,7 +66,7 @@ class ArtemisTest extends QueueTestBase {
     $sut->createQueue();
     $sut->deleteQueue();
     $data = 'test ' . $queueName;
-    $this->assertTrue($sut->createItem(new Message('test ' . $queueName)));
+    $this->assertTrue($sut->createItem('test ' . $queueName));
     // Stomp provides no way to count the number of items. Make sure it
     // returns zero items.
     $this->assertEquals(0, $sut->numberOfItems());

@@ -32,10 +32,10 @@ final class QueueFactory implements ContainerAwareInterface {
    * @param string $name
    *   The queue name.
    *
-   * @return \Drupal\stomp\Queue\Stomp
+   * @return \Drupal\stomp\Queue\Queue
    *   The STOMP queue service.
    */
-  public function get(string $name) : Stomp {
+  public function get(string $name) : Queue {
     // Attempt to figure out what service core's queue factory is calling
     // here, so we can use the corresponding STOMP client.
     $serviceName = $this->settings->get('queue_reliable_service_' . $name);

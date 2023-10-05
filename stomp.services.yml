@@ -1,3 +1,7 @@
+parameters:
+  # The read interval in nanoseconds (100ms by default).
+  stomp.read_interval: 1000000
+
 services:
   stomp.factory:
     class: \Drupal\stomp\StompFactory

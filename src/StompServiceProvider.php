@@ -7,9 +7,11 @@ namespace Drupal\stomp;
 use Drupal\Core\DependencyInjection\ContainerBuilder;
 use Drupal\Core\DependencyInjection\ServiceProviderBase;
 use Drupal\Core\Site\Settings;
+use Drupal\stomp\Queue\Queue;
 use Drupal\stomp\Queue\QueueFactory;
-use Drupal\stomp\Queue\Stomp;
+use Stomp\Broker\ActiveMq\Mode\DurableSubscription;
 use Symfony\Component\DependencyInjection\Definition;
+use Symfony\Component\DependencyInjection\Parameter;
 use Symfony\Component\DependencyInjection\Reference;
 use Webmozart\Assert\Assert;
 
@@ -38,19 +40,22 @@ final class StompServiceProvider extends ServiceProviderBase {
         $configuration->heartbeat,
         $configuration->timeout,
       ]);
-      $connectionService->setPublic(TRUE);
-      $container->setDefinition('stomp.configuration.' . $key, $connectionService);
-
       $stompClient = new Definition(StompFactory::class, [
-        new Reference('stomp.configuration.' . $key),
+        $connectionService,
       ]);
       $stompClient->setFactory([new Reference('stomp.factory'), 'create']);
-
-      $queue = new Definition(Stomp::class, [
+      $queue = new Definition(Queue::class, [
         $stompClient,
+        new Definition(DurableSubscription::class, [
+          $stompClient,
+          $configuration->destination,
+          NULL,
+          'client',
+          $configuration->destination,
+        ]),
         new Reference('event_dispatcher'),
         new Reference('logger.channel.stomp'),
-        $configuration->destination,
+        new Parameter('stomp.read_interval'),
       ]);
       $queue->setPublic(TRUE);
       $container->setDefinition('stomp.queue.' . $key, $queue);

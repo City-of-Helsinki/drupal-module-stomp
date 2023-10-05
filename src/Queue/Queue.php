@@ -18,39 +18,36 @@ use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 /**
  * A service to interact with STOMP server.
  */
-final class Stomp implements ReliableQueueInterface {
+final class Queue implements ReliableQueueInterface {
 
   /**
-   * The durable subscription service.
+   * Whether to continue processing.
    *
-   * @var \Stomp\Broker\ActiveMq\Mode\DurableSubscription
+   * @var bool
    */
-  private readonly DurableSubscription $durableSubscription;
+  private bool $continueReading = TRUE;
 
   /**
    * Constructs a new instance.
    *
-   * @param \Stomp\Client $stompClient
-   *   The STOMP client.
+   * @param \Stomp\Client $client
+   *   The stomp client.
+   * @param \Stomp\Broker\ActiveMq\Mode\DurableSubscription $durableSubscription
+   *   The active mq mode.
    * @param \Symfony\Component\EventDispatcher\EventDispatcherInterface $eventDispatcher
    *   The event dispatcher.
    * @param \Psr\Log\LoggerInterface $logger
    *   The logger.
-   * @param string $destination
-   *   The queue name.
+   * @param int $readInterval
+   *   The read interval.
    */
   public function __construct(
-    private readonly Client $stompClient,
+    private readonly Client $client,
+    private readonly DurableSubscription $durableSubscription,
     private readonly EventDispatcherInterface $eventDispatcher,
     private readonly LoggerInterface $logger,
-    private readonly string $destination,
+    private readonly int $readInterval,
   ) {
-    $this->durableSubscription = new DurableSubscription(
-      $this->stompClient,
-      $this->destination,
-      ack: 'client',
-      subscriptionId: $this->destination,
-    );
   }
 
   /**
@@ -63,7 +60,25 @@ final class Stomp implements ReliableQueueInterface {
    */
   private function connect() : DurableSubscription {
     $this->durableSubscription->activate();
+
     return $this->durableSubscription;
+  }
+
+  /**
+   * Gets the destination.
+   *
+   * @return string
+   *   The destination.
+   */
+  private function getDestination() : string {
+    return $this->durableSubscription->getSubscription()->getDestination();
+  }
+
+  /**
+   * Request processing to be stopped.
+   */
+  public function stop() : void {
+    $this->continueReading = FALSE;
   }
 
   /**
@@ -75,11 +90,13 @@ final class Stomp implements ReliableQueueInterface {
 
     try {
       $this->connect();
-      return $this->stompClient->send($this->destination, $event->message);
+
+      return $this->client
+        ->send($this->getDestination(), $event->message);
     }
     catch (StompException $e) {
-      $this->logger->error('Failed to send item to queue %queue: @message', [
-        '%queue' => $this->destination,
+      $this->logger->error('Failed to send item to %queue: @message', [
+        '%queue' => $this->getDestination(),
         '@message' => $e->getMessage(),
       ]);
     }
@@ -90,28 +107,29 @@ final class Stomp implements ReliableQueueInterface {
    * {@inheritdoc}
    */
   public function claimItem($lease_time = 3600) : object|false {
-    try {
-      while (TRUE) {
-        if (!$message = $this->connect()->read()) {
+    while ($this->continueReading) {
+      try {
+        $message = $this->connect()->read();
+
+        if (!$message instanceof Frame) {
+          if ($this->readInterval > 0) {
+            time_nanosleep(0, $this->readInterval);
+          }
           continue;
         }
-        // The 'drush queue:run' command expects an object with
-        // item_id and data.
         return (object) [
           'item_id' => $message->getMessageId(),
           'message' => $message,
           'data' => $this->decodeMessage($message),
         ];
       }
-
+      catch (StompException $e) {
+        $this->logger->error('Failed to read item from %queue: @message', [
+          '%queue' => $this->getDestination(),
+          '@message' => $e->getMessage(),
+        ]);
+      }
     }
-    catch (StompException $e) {
-      $this->logger->error('Failed to read item from %queue: @message', [
-        '%queue' => $this->destination,
-        '@message' => $e->getMessage(),
-      ]);
-    }
-    return FALSE;
   }
 
   /**
@@ -144,7 +162,11 @@ final class Stomp implements ReliableQueueInterface {
     try {
       $this->connect()->ack($item->message);
     }
-    catch (StompException) {
+    catch (StompException $e) {
+      $this->logger->error('Failed to ACK message from %queue: @message', [
+        '%queue' => $this->getDestination(),
+        '@message' => $e->getMessage(),
+      ]);
     }
   }
 
