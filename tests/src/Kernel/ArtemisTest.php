@@ -23,6 +23,15 @@ class ArtemisTest extends QueueTestBase {
         'passcode' => 'artemis',
         'brokers' => 'tcp://artemis:61613',
         'timeout' => ['read' => 500],
+        'heartbeat' => [
+          'send' => 1000,
+          'receive' => 0,
+          'observers' => [
+            [
+              'class' => '\Stomp\Network\Observer\HeartbeatEmitter',
+            ],
+          ],
+        ],
       ],
       'second' => [
         'clientId' => 'test',

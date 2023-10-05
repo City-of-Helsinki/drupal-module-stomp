@@ -128,6 +128,7 @@ final class Queue implements ReliableQueueInterface {
           '%queue' => $this->getDestination(),
           '@message' => $e->getMessage(),
         ]);
+        $this->stop();
       }
     }
     return FALSE;
