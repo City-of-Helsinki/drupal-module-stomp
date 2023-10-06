@@ -58,7 +58,7 @@ class ArtemisTest extends QueueTestBase {
   protected function getQueueConfiguration(): array {
     return [
       'queue_service_queue1' => 'queue.stomp.first',
-      'queue_reliable_service_queue2' => 'queue.stomp.second',
+      'queue_service_queue2' => 'queue.stomp.second',
       'queue_default' => 'queue.stomp.third',
     ];
   }
@@ -112,9 +112,9 @@ class ArtemisTest extends QueueTestBase {
    */
   public function queueData() : array {
     return [
-      ['/queue/first', 'queue1'],
-      ['/queue/second', 'queue2'],
-      ['/queue/third', 'non_specific_queue'],
+      ['/queue/first/queue1', 'queue1'],
+      ['/queue/second/queue2', 'queue2'],
+      ['/queue/third/non_specific_queue', 'non_specific_queue'],
     ];
   }
 

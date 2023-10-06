@@ -4,25 +4,36 @@ declare(strict_types = 1);
 
 namespace Drupal\stomp\Queue;
 
-use Drupal\Core\Site\Settings;
-use Symfony\Component\DependencyInjection\ContainerAwareInterface;
-use Symfony\Component\DependencyInjection\ContainerAwareTrait;
+use Psr\Log\LoggerInterface;
+use Stomp\Broker\ActiveMq\Mode\DurableSubscription;
+use Stomp\Client;
+use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 
 /**
  * A factory class to construct STOMP queues.
  */
-final class QueueFactory implements ContainerAwareInterface {
-
-  use ContainerAwareTrait;
+final class QueueFactory {
 
   /**
    * Constructs a new instance.
    *
-   * @param \Drupal\Core\Site\Settings $settings
-   *   The site settings.
+   * @param string $destination
+   *   The destination.
+   * @param \Stomp\Client $client
+   *   The stomp client.
+   * @param \Symfony\Component\EventDispatcher\EventDispatcherInterface $eventDispatcher
+   *   The event dispatcher.
+   * @param \Psr\Log\LoggerInterface $logger
+   *   The logger.
+   * @param int $readInterval
+   *   The default read interval.
    */
   public function __construct(
-    private readonly Settings $settings,
+    private readonly string $destination,
+    private readonly Client $client,
+    private readonly EventDispatcherInterface $eventDispatcher,
+    private readonly LoggerInterface $logger,
+    private readonly int $readInterval,
   ) {
   }
 
@@ -36,20 +47,22 @@ final class QueueFactory implements ContainerAwareInterface {
    *   The STOMP queue service.
    */
   public function get(string $name) : Queue {
-    // Attempt to figure out what service core's queue factory is calling
-    // here, so we can use the corresponding STOMP client.
-    $serviceName = $this->settings->get('queue_reliable_service_' . $name);
+    $destination = sprintf('%s/%s', $this->destination, $name);
 
-    if (!$serviceName) {
-      $serviceName = $this->settings->get('queue_service_' . $name);
-    }
+    $durableSubscription = new DurableSubscription(
+      $this->client,
+      $destination,
+      ack: 'client',
+      subscriptionId: $destination,
+    );
 
-    if (!$serviceName) {
-      $serviceName = $this->settings->get('queue_default');
-    }
-    [,, $key] = explode('.', $serviceName);
-
-    return $this->container->get('stomp.queue.' . $key);
+    return new Queue(
+      $this->client,
+      $durableSubscription,
+      $this->eventDispatcher,
+      $this->logger,
+      $this->readInterval,
+    );
   }
 
 }

@@ -31,6 +31,8 @@ Alternatively, you can also set for each queue to use STOMP using one of these f
 
 ```php
 $settings['queue_service_{queue_name}'] = 'queue.stomp.default';
+// Not supported by Drush queue:run at the moment. The service is always called with reliable=FALSE
+// argument.
 $settings['queue_reliable_service_{queue_name}'] = 'queue.stomp.default';
 ```
 
@@ -159,25 +161,28 @@ vendor/bin/phpunit modules/contrib/stomp/tests
 
 The host, username and password should be `artemis`.
 
-You can use the default Docker image provided by Apache with something like this:
+Run Artemis using Docker compose:
 
 ```yaml
-# docker-compose.yml
 services:
   artemis:
-    image: apache/activemq-artemis:latest-alpine
-    networks:
-      - internal
+    image: quay.io/artemiscloud/activemq-artemis-broker
+    ports:
+      - "8161:8161"
+      - "61616:61616"
+      - "5672:5672"
+    environment:
+      AMQ_EXTRA_ARGS: "--nio --user admin --password admin"
 ```
 
 Make sure Artemis queues are empty before running tests:
 
 ```bash
-foreach item (first second third)
-  docker compose exec artemis bin/artemis queue purge \
-    --user artemis \
-    --password artemis \
-    --name test./queue/$item;
+foreach item (/queue/first/queue1 /queue/second/queue2 /queue/third/non_specific_queue)
+  docker compose exec artemis broker/bin/artemis queue purge \
+  --user artemis \
+  --password artemis \
+  --name test.$item;
 end
 ```
 
